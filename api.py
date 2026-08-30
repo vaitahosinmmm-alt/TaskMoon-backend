@@ -6,7 +6,12 @@ from database import (
     add_coins,
     add_referral_commission,
     get_referral_count,
-    get_history
+    get_history,
+    create_support_chat,
+    get_support_chats,
+    get_support_chat,
+    update_support_chat_message,
+    close_support_chat
 )
 
 app = Flask(__name__)
@@ -95,6 +100,73 @@ def history(user_id):
             "amount": row["amount"],
             "description": row["description"],
             "created_at": row["created_at"]
+        })
+
+    return jsonify(result)
+
+
+@app.post("/support/chat")
+def create_chat():
+
+    data = request.get_json(silent=True) or {}
+
+    user_id = data.get("user_id")
+    uid = str(data.get("uid", "")).strip()
+    problem = str(data.get("problem", "")).strip()
+    message = str(data.get("message", "")).strip()
+
+    if not isinstance(user_id, int):
+        return jsonify({"error": "Invalid user_id"}), 400
+
+    if not uid:
+        return jsonify({"error": "UID is required"}), 400
+
+    if not problem:
+        return jsonify({"error": "Problem is required"}), 400
+
+    user = get_user(user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    chat_id = create_support_chat(
+        user_id,
+        uid,
+        problem,
+        message
+    )
+
+    return jsonify({
+        "success": True,
+        "chat_id": chat_id,
+        "status": "open"
+    })
+
+
+@app.get("/admin/support/chats")
+def admin_support_chats():
+
+    ADMIN_ID = 7136507076
+
+    admin_id = request.args.get("admin_id", type=int)
+
+    if admin_id != ADMIN_ID:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    rows = get_support_chats()
+
+    result = []
+
+    for row in rows:
+        result.append({
+            "id": row["id"],
+            "user_id": row["user_id"],
+            "uid": row["uid"],
+            "problem": row["problem"],
+            "message": row["message"],
+            "status": row["status"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"]
         })
 
     return jsonify(result)

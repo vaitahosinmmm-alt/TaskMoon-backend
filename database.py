@@ -158,3 +158,82 @@ def get_history(user_id, limit=20):
 
 
 init_db()
+
+def create_support_chat(user_id, uid, problem, message=""):
+    conn = connect()
+
+    cur = conn.execute("""
+        INSERT INTO support_chats
+        (user_id, uid, problem, message, status)
+        VALUES (?, ?, ?, ?, 'open')
+    """, (
+        user_id,
+        uid,
+        problem,
+        message
+    ))
+
+    conn.commit()
+    chat_id = cur.lastrowid
+    conn.close()
+
+    return chat_id
+
+
+def get_support_chats():
+    conn = connect()
+
+    rows = conn.execute("""
+        SELECT *
+        FROM support_chats
+        ORDER BY id DESC
+    """).fetchall()
+
+    conn.close()
+
+    return rows
+
+
+def get_support_chat(chat_id):
+    conn = connect()
+
+    row = conn.execute("""
+        SELECT *
+        FROM support_chats
+        WHERE id = ?
+    """, (chat_id,)).fetchone()
+
+    conn.close()
+
+    return row
+
+
+def update_support_chat_message(chat_id, message):
+    conn = connect()
+
+    conn.execute("""
+        UPDATE support_chats
+        SET message = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    """, (
+        message,
+        chat_id
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def close_support_chat(chat_id):
+    conn = connect()
+
+    conn.execute("""
+        UPDATE support_chats
+        SET status = 'closed',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    """, (chat_id,))
+
+    conn.commit()
+    conn.close()
