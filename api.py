@@ -115,7 +115,6 @@ def history(user_id):
 
 @app.post("/support/chat")
 def create_chat():
-
     data = request.get_json(silent=True) or {}
 
     user_id = data.get("user_id")
@@ -135,7 +134,8 @@ def create_chat():
     user = get_user(user_id)
 
     if not user:
-        return jsonify({"error": "User not found"}), 404
+        create_user(user_id, "", "", None)
+        user = get_user(user_id)
 
     chat_id = create_support_chat(
         user_id,
@@ -151,37 +151,7 @@ def create_chat():
     })
 
 
-@app.post("/admin/support/reply")
-def admin_support_reply():
-    ADMIN_ID = 7136507076
-
-    data = request.get_json(silent=True) or {}
-
-    admin_id = data.get("admin_id")
-    chat_id = data.get("chat_id")
-    message = str(data.get("message", "")).strip()
-
-    if admin_id != ADMIN_ID:
-        return jsonify({"error": "Unauthorized"}), 403
-
-    if not isinstance(chat_id, int):
-        return jsonify({"error": "Invalid chat_id"}), 400
-
-    if not message:
-        return jsonify({"error": "Message is required"}), 400
-
-    chat = get_support_chat(chat_id)
-
-    if not chat:
-        return jsonify({"error": "Chat not found"}), 404
-
-    update_admin_reply(chat_id, message)
-
-    return jsonify({
-        "success": True,
-        "chat_id": chat_id,
-        "status": "replied"
-    })@app.get("/admin/support/chats")
+@app.get("/admin/support/chats")
 def admin_support_chats():
 
     ADMIN_ID = 7136507076
