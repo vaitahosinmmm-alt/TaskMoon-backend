@@ -14,7 +14,11 @@ from database import (
     add_support_message,
     get_support_messages,
    
-    update_admin_reply, close_support_chat
+    update_admin_reply, close_support_chat,
+    init_withdrawals,
+    create_withdrawal,
+    get_withdrawals,
+    update_withdrawal_status
 )
 
 app = Flask(__name__)
@@ -286,6 +290,121 @@ def send_support_message():
         "success": True,
         "chat_id": chat_id,
         "message": message
+    })
+
+
+
+@app.post("/withdraw")
+def create_withdraw_request():
+
+    data = request.get_json(silent=True) or {}
+
+    user_id = data.get("user_id")
+    amount = data.get("amount")
+    method = str(data.get("method", "")).strip().lower()
+    number = str(data.get("number", "")).strip()
+
+    if not isinstance(user_id, int):
+        return jsonify({"error": "Invalid user_id"}), 400
+
+    try:
+        amount = int(amount)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid amount"}), 400
+
+    if amount <= 0:
+        return jsonify({"error": "Invalid amount"}), 400
+
+    if method not in ("bkash", "nagad"):
+        return jsonify({"error": "Method must be bKash or Nagad"}), 400
+
+    if not number:
+        return jsonify({"error": "Number is required"}), 400
+
+    withdrawal_id = create_withdrawal(
+        user_id,
+        amount,
+        method,
+        number
+    )
+
+    return jsonify({
+        "success": True,
+        "withdrawal_id": withdrawal_id,
+        "status": "pending"
+    })
+
+
+@app.get("/admin/withdrawals")
+def admin_withdrawals():
+
+    ADMIN_ID = 7136507076
+
+    admin_id = request.args.get("admin_id", type=int)
+
+    if admin_id != ADMIN_ID:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    status = request.args.get("status")
+
+    if status and status not in ("pending", "approved", "rejected"):
+        return jsonify({"error": "Invalid status"}), 400
+
+    rows = get_withdrawals(status)
+
+    result = []
+
+    for row in rows:
+        result.append({
+            "id": row["id"],
+            "user_id": row["user_id"],
+            "amount": row["amount"],
+            "method": row["method"],
+            "number": row["number"],
+            "status": row["status"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"]
+        })
+
+    return jsonify({
+        "success": True,
+        "withdrawals": result
+    })
+
+
+@app.post("/admin/withdrawal/status")
+def admin_withdrawal_status():
+
+    ADMIN_ID = 7136507076
+
+    data = request.get_json(silent=True) or {}
+
+    admin_id = data.get("admin_id")
+    withdrawal_id = data.get("withdrawal_id")
+    status = str(data.get("status", "")).strip().lower()
+
+    if admin_id != ADMIN_ID:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    if not isinstance(withdrawal_id, int):
+        return jsonify({"error": "Invalid withdrawal_id"}), 400
+
+    if status not in ("approved", "rejected"):
+        return jsonify({"error": "Invalid status"}), 400
+
+    rows = get_withdrawals()
+
+    exists = any(row["id"] == withdrawal_id for row in rows)
+
+    if not exists:
+        return jsonify({"error": "Withdrawal not found"}), 404
+
+    update_withdrawal_status(withdrawal_id, status)
+
+    return jsonify({
+        "success": True,
+        "withdrawal_id": withdrawal_id,
+        "status": status
     })
 
 
