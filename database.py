@@ -70,6 +70,7 @@ def init_db():
     conn.close()
 
 
+    init_support_messages()
 def get_user(user_id):
     conn = connect()
     user = conn.execute(
