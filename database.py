@@ -4,6 +4,24 @@ from pathlib import Path
 DB_PATH = Path(__file__).parent / "taskmoon.db"
 
 
+
+def init_support_messages():
+    conn = connect()
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS support_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id INTEGER NOT NULL,
+            sender TEXT NOT NULL,
+            message TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+
 def connect():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -236,6 +254,37 @@ def update_support_chat_message(chat_id, message):
 
     conn.commit()
     conn.close()
+
+
+def add_support_message(chat_id, sender, message):
+    conn = connect()
+
+    conn.execute("""
+        INSERT INTO support_messages
+        (chat_id, sender, message)
+        VALUES (?, ?, ?)
+    """, (
+        chat_id,
+        sender,
+        message
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def get_support_messages(chat_id):
+    conn = connect()
+
+    rows = conn.execute("""
+        SELECT id, chat_id, sender, message, created_at
+        FROM support_messages
+        WHERE chat_id = ?
+        ORDER BY id ASC
+    """, (chat_id,)).fetchall()
+
+    conn.close()
+    return rows
 
 
 def close_support_chat(chat_id):

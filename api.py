@@ -11,6 +11,8 @@ from database import (
     get_support_chats,
     get_support_chat,
     update_support_chat_message,
+    add_support_message,
+    get_support_messages,
    
     update_admin_reply, close_support_chat
 )
@@ -174,11 +176,46 @@ def admin_support_reply():
         return jsonify({"error": "Chat not found"}), 404
 
     update_admin_reply(chat_id, reply)
+    add_support_message(chat_id, "admin", reply)
 
     return jsonify({
         "success": True,
         "chat_id": chat_id,
         "admin_reply": reply
+    })
+
+
+@app.get("/support/messages/<int:chat_id>")
+def support_messages_api(chat_id):
+
+    user_id = request.args.get("user_id", type=int)
+
+    if not isinstance(user_id, int):
+        return jsonify({"error": "Invalid user_id"}), 400
+
+    chat = get_support_chat(chat_id)
+
+    if not chat:
+        return jsonify({"error": "Chat not found"}), 404
+
+    if chat["user_id"] != user_id:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    rows = get_support_messages(chat_id)
+
+    result = []
+
+    for row in rows:
+        result.append({
+            "id": row["id"],
+            "sender": row["sender"],
+            "message": row["message"],
+            "created_at": row["created_at"]
+        })
+
+    return jsonify({
+        "success": True,
+        "messages": result
     })
 
 
@@ -243,6 +280,7 @@ def send_support_message():
         return jsonify({"error": "Chat is closed"}), 400
 
     update_support_chat_message(chat_id, message)
+    add_support_message(chat_id, "user", message)
 
     return jsonify({
         "success": True,
