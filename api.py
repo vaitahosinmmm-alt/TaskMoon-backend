@@ -182,6 +182,43 @@ def admin_support_reply():
     })
 
 
+@app.post("/support/message")
+def send_support_message():
+    data = request.get_json(silent=True) or {}
+
+    user_id = data.get("user_id")
+    chat_id = data.get("chat_id")
+    message = str(data.get("message", "")).strip()
+
+    if not isinstance(user_id, int):
+        return jsonify({"error": "Invalid user_id"}), 400
+
+    if not isinstance(chat_id, int):
+        return jsonify({"error": "Invalid chat_id"}), 400
+
+    if not message:
+        return jsonify({"error": "Message is required"}), 400
+
+    chat = get_support_chat(chat_id)
+
+    if not chat:
+        return jsonify({"error": "Chat not found"}), 404
+
+    if chat["user_id"] != user_id:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    if chat["status"] != "open":
+        return jsonify({"error": "Chat is closed"}), 400
+
+    update_support_chat_message(chat_id, message)
+
+    return jsonify({
+        "success": True,
+        "chat_id": chat_id,
+        "message": message
+    })
+
+
 @app.get("/admin/support/chats")
 def admin_support_chats():
 
