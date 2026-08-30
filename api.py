@@ -11,7 +11,8 @@ from database import (
     get_support_chats,
     get_support_chat,
     update_support_chat_message,
-    close_support_chat
+   
+    update_admin_reply, close_support_chat
 )
 
 app = Flask(__name__)
@@ -143,7 +144,37 @@ def create_chat():
     })
 
 
-@app.get("/admin/support/chats")
+@app.post("/admin/support/reply")
+def admin_support_reply():
+    ADMIN_ID = 7136507076
+
+    data = request.get_json(silent=True) or {}
+
+    admin_id = data.get("admin_id")
+    chat_id = data.get("chat_id")
+    message = str(data.get("message", "")).strip()
+
+    if admin_id != ADMIN_ID:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    if not isinstance(chat_id, int):
+        return jsonify({"error": "Invalid chat_id"}), 400
+
+    if not message:
+        return jsonify({"error": "Message is required"}), 400
+
+    chat = get_support_chat(chat_id)
+
+    if not chat:
+        return jsonify({"error": "Chat not found"}), 404
+
+    update_admin_reply(chat_id, message)
+
+    return jsonify({
+        "success": True,
+        "chat_id": chat_id,
+        "status": "replied"
+    })@app.get("/admin/support/chats")
 def admin_support_chats():
 
     ADMIN_ID = 7136507076

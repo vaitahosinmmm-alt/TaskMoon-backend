@@ -34,6 +34,19 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS support_chats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            uid TEXT NOT NULL,
+            problem TEXT NOT NULL,
+            message TEXT DEFAULT '',
+            admin_reply TEXT DEFAULT '',
+            status TEXT DEFAULT 'open',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
 
     conn.commit()
     conn.close()
@@ -237,3 +250,34 @@ def close_support_chat(chat_id):
 
     conn.commit()
     conn.close()
+
+
+def update_admin_reply(chat_id, admin_reply):
+    conn = connect()
+
+    conn.execute("""
+        UPDATE support_chats
+        SET admin_reply = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    """, (
+        admin_reply,
+        chat_id
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def get_admin_reply(chat_id):
+    conn = connect()
+
+    row = conn.execute("""
+        SELECT admin_reply
+        FROM support_chats
+        WHERE id = ?
+    """, (chat_id,)).fetchone()
+
+    conn.close()
+
+    return row["admin_reply"] if row else None
