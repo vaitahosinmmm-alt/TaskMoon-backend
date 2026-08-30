@@ -408,6 +408,45 @@ def admin_withdrawal_status():
     })
 
 
+
+@app.get("/admin/users")
+def admin_users():
+
+    ADMIN_ID = 7136507076
+
+    admin_id = request.args.get("admin_id", type=int)
+
+    if admin_id != ADMIN_ID:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    conn = __import__("sqlite3").connect("taskmoon.db")
+    conn.row_factory = __import__("sqlite3").Row
+
+    rows = conn.execute("""
+        SELECT user_id, username, first_name, created_at
+        FROM users
+        ORDER BY created_at DESC
+    """).fetchall()
+
+    conn.close()
+
+    users = []
+
+    for row in rows:
+        users.append({
+            "user_id": row["user_id"],
+            "username": row["username"] or "",
+            "first_name": row["first_name"] or "",
+            "created_at": row["created_at"]
+        })
+
+    return jsonify({
+        "success": True,
+        "total_users": len(users),
+        "users": users
+    })
+
+
 @app.get("/admin/support/chats")
 def admin_support_chats():
 
