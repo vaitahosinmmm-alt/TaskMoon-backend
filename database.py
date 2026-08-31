@@ -47,6 +47,13 @@ def init_withdrawals():
     conn.commit()
     conn.close()
 
+
+def ensure_uid_column(conn):
+    columns = [row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()]
+    if "uid" not in columns:
+        conn.execute("ALTER TABLE users ADD COLUMN uid TEXT")
+        conn.commit()
+
 def init_db():
     conn = connect()
 
@@ -55,6 +62,7 @@ def init_db():
             user_id INTEGER PRIMARY KEY,
             username TEXT,
             first_name TEXT,
+            uid TEXT UNIQUE,
             coins INTEGER NOT NULL DEFAULT 0,
             referrer_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -101,8 +109,32 @@ def get_user(user_id):
     return user
 
 
+def generate_uid(conn):
+    import random
+
+    while True:
+        uid = "TM" + str(random.randint(100000, 999999))
+        exists = conn.execute(
+            "SELECT 1 FROM users WHERE uid = ?",
+            (uid,)
+        ).fetchone()
+
+        if not exists:
+            return uid
+
+
 def create_user(user_id, username="", first_name="", referrer_id=None):
     conn = connect()
+
+    # Make sure old databases have the UID column
+    columns = [
+        row[1]
+        for row in conn.execute("PRAGMA table_info(users)").fetchall()
+    ]
+
+    if "uid" not in columns:
+        conn.execute("ALTER TABLE users ADD COLUMN uid TEXT")
+        conn.commit()
 
     existing = conn.execute(
         "SELECT user_id FROM users WHERE user_id = ?",
@@ -113,21 +145,23 @@ def create_user(user_id, username="", first_name="", referrer_id=None):
         conn.close()
         return False
 
+    uid = generate_uid(conn)
+
     conn.execute("""
         INSERT INTO users
-        (user_id, username, first_name, referrer_id)
-        VALUES (?, ?, ?, ?)
+        (user_id, username, first_name, uid, referrer_id)
+        VALUES (?, ?, ?, ?, ?)
     """, (
         user_id,
         username or "",
         first_name or "",
+        uid,
         referrer_id
     ))
 
     conn.commit()
     conn.close()
-
-    return True
+    return uid
 
 
 def add_coins(user_id, amount, description=""):

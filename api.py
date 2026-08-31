@@ -39,6 +39,37 @@ def home():
     })
 
 
+@app.post("/user/register")
+def register_user():
+    data = request.get_json(silent=True) or {}
+
+    user_id = data.get("user_id")
+    username = str(data.get("username", "")).strip()
+    first_name = str(data.get("first_name", "")).strip()
+    referrer_id = data.get("referrer_id")
+
+    if not isinstance(user_id, int):
+        return jsonify({"error": "Invalid user_id"}), 400
+
+    existing = get_user(user_id)
+
+    if not existing:
+        create_user(
+            user_id,
+            username,
+            first_name,
+            referrer_id
+        )
+        existing = get_user(user_id)
+
+    return jsonify({
+        "success": True,
+        "uid": existing["uid"],
+        "coins": existing["coins"],
+        "referrals": get_referral_count(user_id)
+    })
+
+
 @app.get("/user/<int:user_id>")
 def user_info(user_id):
 
@@ -51,6 +82,7 @@ def user_info(user_id):
 
     return jsonify({
         "user_id": user["user_id"],
+        "uid": user["uid"],
         "username": user["username"],
         "coins": user["coins"],
         "referrals": get_referral_count(user_id)
