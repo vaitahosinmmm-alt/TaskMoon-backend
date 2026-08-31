@@ -123,6 +123,16 @@ def generate_uid(conn):
             return uid
 
 
+def get_user_by_uid(uid):
+    conn = connect()
+    user = conn.execute(
+        "SELECT * FROM users WHERE uid = ?",
+        (uid,)
+    ).fetchone()
+    conn.close()
+    return user
+
+
 def create_user(user_id, username="", first_name="", referrer_id=None):
     conn = connect()
 

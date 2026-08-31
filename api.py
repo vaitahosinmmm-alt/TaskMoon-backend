@@ -517,26 +517,35 @@ def admin_add_coins():
 
     admin_id = data.get("admin_id")
     user_id = data.get("user_id")
+    uid = str(data.get("uid", "")).strip()
     amount = data.get("amount")
 
     if admin_id != ADMIN_ID:
         return jsonify({"error": "Unauthorized"}), 403
 
-    if not isinstance(user_id, int):
-        return jsonify({"error": "Invalid user_id"}), 400
-
     if not isinstance(amount, int) or amount <= 0:
         return jsonify({"error": "Invalid amount"}), 400
 
-    user = get_user(user_id)
+    # Find user by TaskMoon UID or legacy Telegram user_id
+    if uid:
+        user = get_user_by_uid(uid)
+        if not user:
+            return jsonify({"error": "UID not found"}), 404
+        user_id = user["user_id"]
+    else:
+        if not isinstance(user_id, int):
+            return jsonify({"error": "Invalid user_id"}), 400
 
-    if not user:
-        return jsonify({"error": "User not found"}), 404
+        user = get_user(user_id)
+
+        if not user:
+            return jsonify({"error": "User not found"}), 404
 
     add_coins(user_id, amount, f"Admin test balance: +{amount} coins")
 
     return jsonify({
         "success": True,
+        "uid": user["uid"],
         "user_id": user_id,
         "added_coins": amount,
         "user_coins": get_coins(user_id)
