@@ -1,8 +1,18 @@
-import sqlite3
-from pathlib import Path
+import os
+import psycopg
+from psycopg.rows import dict_row
 
-DB_PATH = Path(__file__).parent / "taskmoon.db"
 
+def connect():
+    database_url = os.environ.get("DATABASE_URL")
+
+    if not database_url:
+        raise RuntimeError("DATABASE_URL is not set")
+
+    return psycopg.connect(
+        database_url,
+        row_factory=dict_row
+    )
 
 
 def init_support_messages():
@@ -10,8 +20,8 @@ def init_support_messages():
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS support_messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chat_id INTEGER NOT NULL,
+            id BIGSERIAL PRIMARY KEY,
+            chat_id BIGINT NOT NULL,
             sender TEXT NOT NULL,
             message TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -22,19 +32,13 @@ def init_support_messages():
     conn.close()
 
 
-def connect():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
 def init_withdrawals():
     conn = connect()
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS withdrawals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
             amount INTEGER NOT NULL,
             method TEXT NOT NULL,
             number TEXT NOT NULL,
@@ -48,41 +52,36 @@ def init_withdrawals():
     conn.close()
 
 
-def ensure_uid_column(conn):
-    columns = [row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()]
-    if "uid" not in columns:
-        conn.execute("ALTER TABLE users ADD COLUMN uid TEXT")
-        conn.commit()
-
 def init_db():
     conn = connect()
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
+            user_id BIGINT PRIMARY KEY,
             username TEXT,
             first_name TEXT,
             uid TEXT UNIQUE,
             coins INTEGER NOT NULL DEFAULT 0,
-            referrer_id INTEGER,
+            referrer_id BIGINT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
             type TEXT NOT NULL,
             amount INTEGER NOT NULL,
             description TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
     conn.execute("""
         CREATE TABLE IF NOT EXISTS support_chats (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
             uid TEXT NOT NULL,
             problem TEXT NOT NULL,
             message TEXT DEFAULT '',
@@ -96,15 +95,18 @@ def init_db():
     conn.commit()
     conn.close()
 
-
     init_support_messages()
     init_withdrawals()
+
+
 def get_user(user_id):
     conn = connect()
+
     user = conn.execute(
-        "SELECT * FROM users WHERE user_id = ?",
+        "SELECT * FROM users WHERE user_id = %s",
         (user_id,)
     ).fetchone()
+
     conn.close()
     return user
 
@@ -114,8 +116,9 @@ def generate_uid(conn):
 
     while True:
         uid = "TM" + str(random.randint(100000, 999999))
+
         exists = conn.execute(
-            "SELECT 1 FROM users WHERE uid = ?",
+            "SELECT 1 FROM users WHERE uid = %s",
             (uid,)
         ).fetchone()
 
@@ -125,29 +128,26 @@ def generate_uid(conn):
 
 def get_user_by_uid(uid):
     conn = connect()
+
     user = conn.execute(
-        "SELECT * FROM users WHERE uid = ?",
+        "SELECT * FROM users WHERE uid = %s",
         (uid,)
     ).fetchone()
+
     conn.close()
     return user
 
 
-def create_user(user_id, username="", first_name="", referrer_id=None):
+def create_user(
+    user_id,
+    username="",
+    first_name="",
+    referrer_id=None
+):
     conn = connect()
 
-    # Make sure old databases have the UID column
-    columns = [
-        row[1]
-        for row in conn.execute("PRAGMA table_info(users)").fetchall()
-    ]
-
-    if "uid" not in columns:
-        conn.execute("ALTER TABLE users ADD COLUMN uid TEXT")
-        conn.commit()
-
     existing = conn.execute(
-        "SELECT user_id FROM users WHERE user_id = ?",
+        "SELECT user_id FROM users WHERE user_id = %s",
         (user_id,)
     ).fetchone()
 
@@ -160,7 +160,7 @@ def create_user(user_id, username="", first_name="", referrer_id=None):
     conn.execute("""
         INSERT INTO users
         (user_id, username, first_name, uid, referrer_id)
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s)
     """, (
         user_id,
         username or "",
@@ -171,6 +171,7 @@ def create_user(user_id, username="", first_name="", referrer_id=None):
 
     conn.commit()
     conn.close()
+
     return uid
 
 
@@ -178,14 +179,14 @@ def add_coins(user_id, amount, description=""):
     conn = connect()
 
     conn.execute(
-        "UPDATE users SET coins = coins + ? WHERE user_id = ?",
+        "UPDATE users SET coins = coins + %s WHERE user_id = %s",
         (amount, user_id)
     )
 
     conn.execute("""
         INSERT INTO history
         (user_id, type, amount, description)
-        VALUES (?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s)
     """, (
         user_id,
         "EARN",
@@ -225,7 +226,7 @@ def get_referral_count(user_id):
     conn = connect()
 
     result = conn.execute(
-        "SELECT COUNT(*) AS total FROM users WHERE referrer_id = ?",
+        "SELECT COUNT(*) AS total FROM users WHERE referrer_id = %s",
         (user_id,)
     ).fetchone()
 
@@ -240,9 +241,9 @@ def get_history(user_id, limit=20):
     rows = conn.execute("""
         SELECT type, amount, description, created_at
         FROM history
-        WHERE user_id = ?
+        WHERE user_id = %s
         ORDER BY id DESC
-        LIMIT ?
+        LIMIT %s
     """, (
         user_id,
         limit
@@ -253,27 +254,30 @@ def get_history(user_id, limit=20):
     return rows
 
 
-init_db()
-
-def create_support_chat(user_id, uid, problem, message=""):
+def create_support_chat(
+    user_id,
+    uid,
+    problem,
+    message=""
+):
     conn = connect()
 
-    cur = conn.execute("""
+    row = conn.execute("""
         INSERT INTO support_chats
         (user_id, uid, problem, message, status)
-        VALUES (?, ?, ?, ?, 'open')
+        VALUES (%s, %s, %s, %s, 'open')
+        RETURNING id
     """, (
         user_id,
         uid,
         problem,
         message
-    ))
+    )).fetchone()
 
     conn.commit()
-    chat_id = cur.lastrowid
     conn.close()
 
-    return chat_id
+    return row["id"]
 
 
 def get_support_chats():
@@ -296,7 +300,7 @@ def get_support_chat(chat_id):
     row = conn.execute("""
         SELECT *
         FROM support_chats
-        WHERE id = ?
+        WHERE id = %s
     """, (chat_id,)).fetchone()
 
     conn.close()
@@ -309,9 +313,9 @@ def update_support_chat_message(chat_id, message):
 
     conn.execute("""
         UPDATE support_chats
-        SET message = ?,
+        SET message = %s,
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
+        WHERE id = %s
     """, (
         message,
         chat_id
@@ -327,7 +331,7 @@ def add_support_message(chat_id, sender, message):
     conn.execute("""
         INSERT INTO support_messages
         (chat_id, sender, message)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s)
     """, (
         chat_id,
         sender,
@@ -344,11 +348,12 @@ def get_support_messages(chat_id):
     rows = conn.execute("""
         SELECT id, chat_id, sender, message, created_at
         FROM support_messages
-        WHERE chat_id = ?
+        WHERE chat_id = %s
         ORDER BY id ASC
     """, (chat_id,)).fetchall()
 
     conn.close()
+
     return rows
 
 
@@ -359,7 +364,7 @@ def close_support_chat(chat_id):
         UPDATE support_chats
         SET status = 'closed',
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
+        WHERE id = %s
     """, (chat_id,))
 
     conn.commit()
@@ -371,9 +376,9 @@ def update_admin_reply(chat_id, admin_reply):
 
     conn.execute("""
         UPDATE support_chats
-        SET admin_reply = ?,
+        SET admin_reply = %s,
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
+        WHERE id = %s
     """, (
         admin_reply,
         chat_id
@@ -389,33 +394,38 @@ def get_admin_reply(chat_id):
     row = conn.execute("""
         SELECT admin_reply
         FROM support_chats
-        WHERE id = ?
+        WHERE id = %s
     """, (chat_id,)).fetchone()
 
     conn.close()
 
     return row["admin_reply"] if row else None
 
-def create_withdrawal(user_id, amount, method, number):
+
+def create_withdrawal(
+    user_id,
+    amount,
+    method,
+    number
+):
     conn = connect()
 
-    cursor = conn.execute("""
+    row = conn.execute("""
         INSERT INTO withdrawals
         (user_id, amount, method, number, status)
-        VALUES (?, ?, ?, ?, 'pending')
+        VALUES (%s, %s, %s, %s, 'pending')
+        RETURNING id
     """, (
         user_id,
         amount,
         method,
         number
-    ))
-
-    withdrawal_id = cursor.lastrowid
+    )).fetchone()
 
     conn.commit()
     conn.close()
 
-    return withdrawal_id
+    return row["id"]
 
 
 def get_withdrawals(status=None):
@@ -425,7 +435,7 @@ def get_withdrawals(status=None):
         rows = conn.execute("""
             SELECT *
             FROM withdrawals
-            WHERE status = ?
+            WHERE status = %s
             ORDER BY id DESC
         """, (status,)).fetchall()
     else:
@@ -436,17 +446,21 @@ def get_withdrawals(status=None):
         """).fetchall()
 
     conn.close()
+
     return rows
 
 
-def update_withdrawal_status(withdrawal_id, status):
+def update_withdrawal_status(
+    withdrawal_id,
+    status
+):
     conn = connect()
 
     conn.execute("""
         UPDATE withdrawals
-        SET status = ?,
+        SET status = %s,
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
+        WHERE id = %s
     """, (
         status,
         withdrawal_id
@@ -454,3 +468,6 @@ def update_withdrawal_status(withdrawal_id, status):
 
     conn.commit()
     conn.close()
+
+
+init_db()
