@@ -28,6 +28,25 @@ def connect():
     return conn
 
 
+def init_withdrawals():
+    conn = connect()
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS withdrawals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            amount INTEGER NOT NULL,
+            method TEXT NOT NULL,
+            number TEXT NOT NULL,
+            status TEXT DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
 def init_db():
     conn = connect()
 
@@ -332,26 +351,6 @@ def get_admin_reply(chat_id):
     conn.close()
 
     return row["admin_reply"] if row else None
-
-def init_withdrawals():
-    conn = connect()
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS withdrawals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            amount INTEGER NOT NULL,
-            method TEXT NOT NULL,
-            number TEXT NOT NULL,
-            status TEXT DEFAULT 'pending',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    conn.commit()
-    conn.close()
-
 
 def create_withdrawal(user_id, amount, method, number):
     conn = connect()
