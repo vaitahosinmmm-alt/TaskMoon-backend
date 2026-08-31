@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from database import (
-    get_user,
+    get_user, get_user_by_uid,
     create_user,
     get_coins,
     add_coins,
