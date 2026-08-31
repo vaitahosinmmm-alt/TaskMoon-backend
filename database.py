@@ -112,18 +112,14 @@ def get_user(user_id):
 
 
 def generate_uid(conn):
-    import random
+    row = conn.execute("""
+        SELECT MAX(CAST(SUBSTRING(uid FROM 3) AS INTEGER))
+        FROM users
+        WHERE uid ~ '^TM[0-9]+$'
+    """).fetchone()
 
-    while True:
-        uid = "TM" + str(random.randint(100000, 999999))
-
-        exists = conn.execute(
-            "SELECT 1 FROM users WHERE uid = %s",
-            (uid,)
-        ).fetchone()
-
-        if not exists:
-            return uid
+    last_number = row[0] if row and row[0] is not None else 6000
+    return "TM" + str(last_number + 1)
 
 
 def get_user_by_uid(uid):
