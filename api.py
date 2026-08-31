@@ -476,6 +476,39 @@ def admin_support_chats():
     return jsonify(result)
 
 
+
+@app.post("/admin/add-coins")
+def admin_add_coins():
+    ADMIN_ID = 7136507076
+    data = request.get_json(silent=True) or {}
+
+    admin_id = data.get("admin_id")
+    user_id = data.get("user_id")
+    amount = data.get("amount")
+
+    if admin_id != ADMIN_ID:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    if not isinstance(user_id, int):
+        return jsonify({"error": "Invalid user_id"}), 400
+
+    if not isinstance(amount, int) or amount <= 0:
+        return jsonify({"error": "Invalid amount"}), 400
+
+    user = get_user(user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    add_coins(user_id, amount, f"Admin test balance: +{amount} coins")
+
+    return jsonify({
+        "success": True,
+        "user_id": user_id,
+        "added_coins": amount,
+        "user_coins": get_coins(user_id)
+    })
+
 if __name__ == "__main__":
 
     print("🌙 TaskMoon API Started...")
@@ -486,103 +519,3 @@ if __name__ == "__main__":
         debug=False
     )
 
-@app.post("/admin/add-coins")
-def admin_add_coins():
-    ADMIN_ID = 7136507076
-
-    data = request.get_json(silent=True) or {}
-
-    admin_id = data.get("admin_id")
-    user_id = data.get("user_id")
-    amount = data.get("amount")
-
-    if admin_id != ADMIN_ID:
-        return jsonify({"error": "Unauthorized"}), 403
-
-    if not isinstance(user_id, int):
-        return jsonify({"error": "Invalid user_id"}), 400
-
-    if not isinstance(amount, int) or amount <= 0:
-        return jsonify({"error": "Invalid amount"}), 400
-
-    user = get_user(user_id)
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    add_coins(
-        user_id,
-        amount,
-        f"Admin test balance: +{amount} coins"
-    )
-
-    return jsonify({
-        "success": True,
-        "user_id": user_id,
-        "added_coins": amount,
-        "user_coins": get_coins(user_id)
-    })
-
-@app.post("/admin/add-coins")
-def admin_add_coins():
-    ADMIN_ID = 7136507076
-    data = request.get_json(silent=True) or {}
-
-    admin_id = data.get("admin_id")
-    user_id = data.get("user_id")
-    amount = data.get("amount")
-
-    if admin_id != ADMIN_ID:
-        return jsonify({"error": "Unauthorized"}), 403
-
-    if not isinstance(user_id, int):
-        return jsonify({"error": "Invalid user_id"}), 400
-
-    if not isinstance(amount, int) or amount <= 0:
-        return jsonify({"error": "Invalid amount"}), 400
-
-    user = get_user(user_id)
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    add_coins(user_id, amount, f"Admin test balance: +{amount} coins")
-
-    return jsonify({
-        "success": True,
-        "user_id": user_id,
-        "added_coins": amount,
-        "user_coins": get_coins(user_id)
-    })
-
-@app.post("/admin/add-coins")
-def admin_add_coins():
-    ADMIN_ID = 7136507076
-    data = request.get_json(silent=True) or {}
-
-    admin_id = data.get("admin_id")
-    user_id = data.get("user_id")
-    amount = data.get("amount")
-
-    if admin_id != ADMIN_ID:
-        return jsonify({"error": "Unauthorized"}), 403
-
-    if not isinstance(user_id, int):
-        return jsonify({"error": "Invalid user_id"}), 400
-
-    if not isinstance(amount, int) or amount <= 0:
-        return jsonify({"error": "Invalid amount"}), 400
-
-    user = get_user(user_id)
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    add_coins(user_id, amount, f"Admin test balance: +{amount} coins")
-
-    return jsonify({
-        "success": True,
-        "user_id": user_id,
-        "added_coins": amount,
-        "user_coins": get_coins(user_id)
-    })
