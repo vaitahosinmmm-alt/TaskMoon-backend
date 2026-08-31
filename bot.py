@@ -23,7 +23,7 @@ def start(message):
     markup.add(
         types.InlineKeyboardButton(
             "🌙 Open TaskMoon App",
-            url=APP_URL
+            web_app=types.WebAppInfo(url=APP_URL)
         )
     )
 
@@ -43,7 +43,7 @@ def other_messages(message):
     markup.add(
         types.InlineKeyboardButton(
             "🌙 Open TaskMoon App",
-            url=APP_URL
+            web_app=types.WebAppInfo(url=APP_URL)
         )
     )
 
