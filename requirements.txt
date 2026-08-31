@@ -2,3 +2,4 @@ flask
 pyTelegramBotAPI
 python-dotenv
 gunicorn
+psycopg[binary]
