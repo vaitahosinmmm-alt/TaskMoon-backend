@@ -455,7 +455,7 @@ def admin_users():
     conn.row_factory = __import__("sqlite3").Row
 
     rows = conn.execute("""
-        SELECT user_id, username, first_name, created_at
+        SELECT user_id, uid, username, first_name, created_at
         FROM users
         ORDER BY created_at DESC
     """).fetchall()
@@ -467,6 +467,7 @@ def admin_users():
     for row in rows:
         users.append({
             "user_id": row["user_id"],
+            "uid": row["uid"] or "",
             "username": row["username"] or "",
             "first_name": row["first_name"] or "",
             "created_at": row["created_at"]
