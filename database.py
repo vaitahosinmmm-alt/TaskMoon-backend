@@ -113,12 +113,12 @@ def get_user(user_id):
 
 def generate_uid(conn):
     row = conn.execute("""
-        SELECT MAX(CAST(SUBSTRING(uid FROM 3) AS INTEGER))
+        SELECT MAX(CAST(SUBSTRING(uid FROM 3) AS INTEGER)) AS max_uid
         FROM users
         WHERE uid ~ '^TM[0-9]+$'
     """).fetchone()
 
-    last_number = row[0] if row and row[0] is not None else 6000
+    last_number = row["max_uid"] if row and row["max_uid"] is not None else 6000
     return "TM" + str(last_number + 1)
 
 
