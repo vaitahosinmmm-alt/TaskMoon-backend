@@ -12,7 +12,7 @@ if not TOKEN:
 
 bot = telebot.TeleBot(TOKEN)
 
-APP_URL = "https://task-moon-rkiq.vercel.app/"
+APP_URL = "https://task-moon.vercel.app/"
 
 
 @bot.message_handler(commands=["start"])
