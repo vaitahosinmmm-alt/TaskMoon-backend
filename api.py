@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from database import connect
 from database import (
     get_user, get_user_by_uid,
     create_user,
