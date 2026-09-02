@@ -451,8 +451,7 @@ def admin_users():
     if admin_id != ADMIN_ID:
         return jsonify({"error": "Unauthorized"}), 403
 
-    conn = __import__("sqlite3").connect("taskmoon.db")
-    conn.row_factory = __import__("sqlite3").Row
+    conn = connect()
 
     rows = conn.execute("""
         SELECT user_id, uid, username, first_name, created_at
