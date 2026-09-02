@@ -56,4 +56,5 @@ def other_messages(message):
 
 print("🌙 TaskMoon App Bot Started...")
 
-bot.infinity_polling()
+if __name__ == "__main__":
+    bot.infinity_polling()
