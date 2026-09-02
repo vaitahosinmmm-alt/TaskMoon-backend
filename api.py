@@ -455,7 +455,7 @@ def admin_users():
     conn = connect()
 
     rows = conn.execute("""
-        SELECT user_id, uid, username, first_name, created_at
+        SELECT user_id, uid, username, first_name, coins, created_at
         FROM users
         ORDER BY created_at DESC
     """).fetchall()
@@ -470,6 +470,7 @@ def admin_users():
             "uid": row["uid"] or "",
             "username": row["username"] or "",
             "first_name": row["first_name"] or "",
+            "coins": row["coins"],
             "created_at": row["created_at"]
         })
 
