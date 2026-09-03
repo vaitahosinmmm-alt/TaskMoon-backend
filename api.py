@@ -17,9 +17,9 @@ from database import (
    
     update_admin_reply, close_support_chat,
     init_withdrawals,
-    create_withdrawal,
     get_withdrawals,
-    update_withdrawal_status
+    update_withdrawal_status,
+    create_withdrawal_request
 )
 
 app = Flask(__name__)
@@ -354,12 +354,17 @@ def create_withdraw_request():
     if not number:
         return jsonify({"error": "Number is required"}), 400
 
-    withdrawal_id = create_withdrawal(
+    success, withdrawal_id, message = create_withdrawal_request(
         user_id,
         amount,
         method,
         number
     )
+
+    if not success:
+        return jsonify({
+            "error": message
+        }), 400
 
     return jsonify({
         "success": True,
@@ -432,7 +437,15 @@ def admin_withdrawal_status():
     if not exists:
         return jsonify({"error": "Withdrawal not found"}), 404
 
-    update_withdrawal_status(withdrawal_id, status)
+    success, message = update_withdrawal_status(
+        withdrawal_id,
+        status
+    )
+
+    if not success:
+        return jsonify({
+            "error": message
+        }), 400
 
     return jsonify({
         "success": True,

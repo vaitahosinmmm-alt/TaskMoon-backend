@@ -194,6 +194,44 @@ def add_coins(user_id, amount, description=""):
     conn.close()
 
 
+
+def deduct_coins(user_id, amount, description=""):
+    conn = connect()
+
+    row = conn.execute("""
+        UPDATE users
+        SET coins = coins - %s
+        WHERE user_id = %s
+          AND coins >= %s
+        RETURNING coins
+    """, (
+        amount,
+        user_id,
+        amount
+    )).fetchone()
+
+    if not row:
+        conn.rollback()
+        conn.close()
+        return False
+
+    conn.execute("""
+        INSERT INTO history
+        (user_id, type, amount, description)
+        VALUES (%s, %s, %s, %s)
+    """, (
+        user_id,
+        "WITHDRAW",
+        -amount,
+        description
+    ))
+
+    conn.commit()
+    conn.close()
+
+    return True
+
+
 def get_coins(user_id):
     user = get_user(user_id)
 
@@ -398,6 +436,96 @@ def get_admin_reply(chat_id):
     return row["admin_reply"] if row else None
 
 
+
+def create_withdrawal_request(
+    user_id,
+    amount,
+    method,
+    number
+):
+    conn = connect()
+
+    try:
+        # Lock user row so simultaneous withdrawal requests are serialized
+        user = conn.execute("""
+            SELECT user_id
+            FROM users
+            WHERE user_id = %s
+            FOR UPDATE
+        """, (user_id,)).fetchone()
+
+        if not user:
+            conn.rollback()
+            return False, None, "User not found"
+
+        # Only one pending withdrawal per user
+        pending = conn.execute("""
+            SELECT id
+            FROM withdrawals
+            WHERE user_id = %s
+              AND status = 'pending'
+            LIMIT 1
+        """, (user_id,)).fetchone()
+
+        if pending:
+            conn.rollback()
+            return False, None, "A withdrawal is already pending"
+
+        # Deduct coins atomically
+        balance = conn.execute("""
+            UPDATE users
+            SET coins = coins - %s
+            WHERE user_id = %s
+              AND coins >= %s
+            RETURNING coins
+        """, (
+            amount,
+            user_id,
+            amount
+        )).fetchone()
+
+        if not balance:
+            conn.rollback()
+            return False, None, "Insufficient balance"
+
+        # Create withdrawal request
+        withdrawal = conn.execute("""
+            INSERT INTO withdrawals
+            (user_id, amount, method, number, status)
+            VALUES (%s, %s, %s, %s, 'pending')
+            RETURNING id
+        """, (
+            user_id,
+            amount,
+            method,
+            number
+        )).fetchone()
+
+        # Add withdrawal history
+        conn.execute("""
+            INSERT INTO history
+            (user_id, type, amount, description)
+            VALUES (%s, %s, %s, %s)
+        """, (
+            user_id,
+            "WITHDRAW",
+            -amount,
+            "Withdrawal request"
+        ))
+
+        conn.commit()
+
+        return True, withdrawal["id"], "Withdrawal request created"
+
+    except Exception as e:
+        conn.rollback()
+        print("Withdrawal error:", e)
+        return False, None, "Withdrawal request failed"
+
+    finally:
+        conn.close()
+
+
 def create_withdrawal(
     user_id,
     amount,
@@ -452,6 +580,27 @@ def update_withdrawal_status(
 ):
     conn = connect()
 
+    row = conn.execute("""
+        SELECT user_id, amount, status
+        FROM withdrawals
+        WHERE id = %s
+        FOR UPDATE
+    """, (
+        withdrawal_id,
+    )).fetchone()
+
+    if not row:
+        conn.rollback()
+        conn.close()
+        return False, "Withdrawal not found"
+
+    current_status = row["status"]
+
+    if current_status != "pending":
+        conn.rollback()
+        conn.close()
+        return False, "Withdrawal already processed"
+
     conn.execute("""
         UPDATE withdrawals
         SET status = %s,
@@ -462,8 +611,31 @@ def update_withdrawal_status(
         withdrawal_id
     ))
 
+    if status == "rejected":
+        conn.execute("""
+            UPDATE users
+            SET coins = coins + %s
+            WHERE user_id = %s
+        """, (
+            row["amount"],
+            row["user_id"]
+        ))
+
+        conn.execute("""
+            INSERT INTO history
+            (user_id, type, amount, description)
+            VALUES (%s, %s, %s, %s)
+        """, (
+            row["user_id"],
+            "REFUND",
+            row["amount"],
+            "Withdrawal rejected - refund"
+        ))
+
     conn.commit()
     conn.close()
+
+    return True, "Withdrawal status updated"
 
 
 init_db()
