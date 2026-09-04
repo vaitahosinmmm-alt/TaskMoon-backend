@@ -656,3 +656,102 @@ def update_withdrawal_status(
 
 
 init_db()
+
+def init_task_submissions():
+    conn = connect()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS task_submissions (
+            id BIGSERIAL PRIMARY KEY,
+            task_id TEXT NOT NULL,
+            task_title TEXT NOT NULL,
+            user_id BIGINT NOT NULL,
+            reward INTEGER NOT NULL,
+            proof TEXT,
+            note TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def create_task_submission(task_id, task_title, user_id, reward, proof="", note=""):
+    conn = connect()
+    row = conn.execute("""
+        INSERT INTO task_submissions
+        (task_id, task_title, user_id, reward, proof, note)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        RETURNING id
+    """, (task_id, task_title, user_id, reward, proof, note)).fetchone()
+    conn.commit()
+    conn.close()
+    return row["id"]
+
+def get_task_submissions(status=None):
+    conn = connect()
+    if status:
+        rows = conn.execute("""
+            SELECT *
+            FROM task_submissions
+            WHERE status = %s
+            ORDER BY id ASC
+        """, (status,)).fetchall()
+    else:
+        rows = conn.execute("""
+            SELECT *
+            FROM task_submissions
+            ORDER BY id ASC
+        """).fetchall()
+    conn.close()
+    return rows
+
+def update_task_submission(submission_id, status):
+    conn = connect()
+    row = conn.execute("""
+        SELECT user_id, reward, status
+        FROM task_submissions
+        WHERE id = %s
+        FOR UPDATE
+    """, (submission_id,)).fetchone()
+
+    if not row:
+        conn.rollback()
+        conn.close()
+        return False, "Submission not found"
+
+    if row["status"] != "pending":
+        conn.rollback()
+        conn.close()
+        return False, "Submission already processed"
+
+    conn.execute("""
+        UPDATE task_submissions
+        SET status = %s,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (status, submission_id))
+
+    if status == "approved":
+        conn.execute("""
+            UPDATE users
+            SET coins = coins + %s
+            WHERE user_id = %s
+        """, (row["reward"], row["user_id"]))
+
+        conn.execute("""
+            INSERT INTO history
+            (user_id, type, amount, description)
+            VALUES (%s, %s, %s, %s)
+        """, (
+            row["user_id"],
+            "TASK_REWARD",
+            row["reward"],
+            "Task submission approved"
+        ))
+
+    conn.commit()
+    conn.close()
+    return True, "Submission status updated"
+
+init_task_submissions()

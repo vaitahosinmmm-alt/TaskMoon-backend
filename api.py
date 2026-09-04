@@ -4,6 +4,9 @@ from database import (
     get_user, get_user_by_uid,
     create_user,
     get_coins,
+    create_task_submission,
+    get_task_submissions,
+    update_task_submission,
     add_coins,
     add_referral_commission,
     get_referral_count,
@@ -589,6 +592,107 @@ def admin_add_coins():
         "added_coins": amount,
         "user_coins": get_coins(user_id)
     })
+
+
+@app.post("/task/submit")
+def submit_task_work():
+    data = request.get_json(silent=True) or {}
+
+    user_id = data.get("user_id")
+    task_id = str(data.get("task_id", "")).strip()
+    task_title = str(data.get("task_title", "")).strip()
+    reward = data.get("reward")
+    proof = str(data.get("proof", "")).strip()
+    note = str(data.get("note", "")).strip()
+
+    if not isinstance(user_id, int):
+        return jsonify({"error": "Invalid user_id"}), 400
+    if not task_id or not task_title:
+        return jsonify({"error": "Task information missing"}), 400
+    if not isinstance(reward, int) or reward <= 0:
+        return jsonify({"error": "Invalid reward"}), 400
+    if not proof and not note:
+        return jsonify({"error": "Proof or note required"}), 400
+
+    if not get_user(user_id):
+        return jsonify({"error": "User not found"}), 404
+
+    submission_id = create_task_submission(
+        task_id, task_title, user_id, reward, proof, note
+    )
+
+    return jsonify({
+        "success": True,
+        "submission_id": submission_id,
+        "message": "Work submitted successfully"
+    })
+
+
+@app.get("/admin/task-submissions")
+def admin_task_submissions():
+    ADMIN_ID = 7136507076
+    admin_id = request.args.get("admin_id", type=int)
+
+    if admin_id != ADMIN_ID:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    status = request.args.get("status")
+    if status not in ("pending", "approved", "rejected"):
+        status = None
+
+    rows = get_task_submissions(status)
+
+    return jsonify({
+        "success": True,
+        "submissions": [
+            {
+                "serial": i + 1,
+                "id": row["id"],
+                "task_id": row["task_id"],
+                "task_title": row["task_title"],
+                "user_id": row["user_id"],
+                "reward": row["reward"],
+                "proof": row["proof"] or "",
+                "note": row["note"] or "",
+                "status": row["status"],
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"]
+            }
+            for i, row in enumerate(rows)
+        ]
+    })
+
+
+@app.post("/admin/task-submission/status")
+def admin_task_submission_status():
+    ADMIN_ID = 7136507076
+    data = request.get_json(silent=True) or {}
+
+    if data.get("admin_id") != ADMIN_ID:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    submission_id = data.get("submission_id")
+    status = str(data.get("status", "")).strip().lower()
+
+    if not isinstance(submission_id, int):
+        return jsonify({"error": "Invalid submission_id"}), 400
+
+    if status not in ("approved", "rejected"):
+        return jsonify({"error": "Invalid status"}), 400
+
+    success, message = update_task_submission(
+        submission_id, status
+    )
+
+    if not success:
+        return jsonify({"error": message}), 400
+
+    return jsonify({
+        "success": True,
+        "submission_id": submission_id,
+        "status": status
+    })
+
 
 if __name__ == "__main__":
 
