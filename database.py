@@ -574,6 +574,23 @@ def get_withdrawals(status=None):
     return rows
 
 
+def get_user_withdrawals(user_id):
+    conn = connect()
+
+    try:
+        rows = conn.execute("""
+            SELECT id, amount, method, number, status, created_at, updated_at
+            FROM withdrawals
+            WHERE user_id = %s
+            ORDER BY id DESC
+        """, (user_id,)).fetchall()
+
+        return rows
+
+    finally:
+        conn.close()
+
+
 def update_withdrawal_status(
     withdrawal_id,
     status

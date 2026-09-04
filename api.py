@@ -18,6 +18,7 @@ from database import (
     update_admin_reply, close_support_chat,
     init_withdrawals,
     get_withdrawals,
+    get_user_withdrawals,
     update_withdrawal_status,
     create_withdrawal_request
 )
@@ -370,6 +371,30 @@ def create_withdraw_request():
         "success": True,
         "withdrawal_id": withdrawal_id,
         "status": "pending"
+    })
+
+
+@app.get("/user/<int:user_id>/withdrawals")
+def user_withdrawals(user_id):
+
+    rows = get_user_withdrawals(user_id)
+
+    result = []
+
+    for row in rows:
+        result.append({
+            "id": row["id"],
+            "amount": row["amount"],
+            "method": row["method"],
+            "number": row["number"],
+            "status": row["status"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"]
+        })
+
+    return jsonify({
+        "success": True,
+        "withdrawals": result
     })
 
 
