@@ -1,18 +1,45 @@
 import os
 import psycopg
 from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
+
+_pool = None
+
+class PooledConnection:
+    def __init__(self, pool, conn):
+        self._pool = pool
+        self._conn = conn
+        self._returned = False
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+    def close(self):
+        if not self._returned:
+            self._pool.putconn(self._conn)
+            self._returned = True
+
+
+def get_pool():
+    global _pool
+    if _pool is None:
+        database_url = os.environ.get('DATABASE_URL')
+        if not database_url:
+            raise RuntimeError('DATABASE_URL is not set')
+        _pool = ConnectionPool(
+            conninfo=database_url,
+            min_size=1,
+            max_size=5,
+            timeout=10,
+            kwargs={'row_factory': dict_row},
+            open=True
+        )
+    return _pool
 
 
 def connect():
-    database_url = os.environ.get("DATABASE_URL")
-
-    if not database_url:
-        raise RuntimeError("DATABASE_URL is not set")
-
-    return psycopg.connect(
-        database_url,
-        row_factory=dict_row
-    )
+    pool = get_pool()
+    return PooledConnection(pool, pool.getconn())
 
 
 def init_support_messages():
@@ -295,6 +322,20 @@ def create_support_chat(
     message=""
 ):
     conn = connect()
+
+    # Reuse existing open support chat for this user
+    existing = conn.execute("""
+        SELECT id
+        FROM support_chats
+        WHERE user_id = %s
+          AND status = 'open'
+        ORDER BY id DESC
+        LIMIT 1
+    """, (user_id,)).fetchone()
+
+    if existing:
+        conn.close()
+        return existing["id"]
 
     row = conn.execute("""
         INSERT INTO support_chats
