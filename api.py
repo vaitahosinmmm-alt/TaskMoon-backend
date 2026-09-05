@@ -552,6 +552,36 @@ def admin_support_chats():
 
 
 
+@app.get("/admin/support/messages/<int:chat_id>")
+def admin_support_messages(chat_id):
+    ADMIN_ID = 7136507076
+    admin_id = request.args.get("admin_id", type=int)
+
+    if admin_id != ADMIN_ID:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    chat = get_support_chat(chat_id)
+    if not chat:
+        return jsonify({"error": "Chat not found"}), 404
+
+    rows = get_support_messages(chat_id)
+
+    messages = []
+    for row in rows:
+        messages.append({
+            "id": row["id"],
+            "sender": row["sender"],
+            "message": row["message"],
+            "created_at": row["created_at"]
+        })
+
+    return jsonify({
+        "success": True,
+        "chat_id": chat_id,
+        "messages": messages
+    })
+
+
 @app.post("/admin/add-coins")
 def admin_add_coins():
     ADMIN_ID = 7136507076
